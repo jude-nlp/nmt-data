@@ -100,28 +100,13 @@ PARA_TGT_TEST_BPE=$PROC_PATH/test.$SRC-$TGT.$TGT
 
 # valid / test file raw data
 unset PARA_SRC_TRAIN PARA_TGT_TRAIN PARA_SRC_VALID PARA_TGT_VALID PARA_SRC_TEST PARA_TGT_TEST    # Update
-if [ "$SRC" == "fr" -a "$TGT" == "en" ]; then
-  PARA_SRC_TRAIN_RAW=$PARA_PATH/train/raw/fr-en-raw.fr  # Update  这是未经处理的数据
-  PARA_TGT_TRAIN_RAW=$PARA_PATH/train/raw/fr-en-raw.en  # Update
-  PARA_SRC_VALID_RAW=$PARA_PATH/dev/raw/valid-raw.fr  # Update
-  PARA_TGT_VALID_RAW=$PARA_PATH/dev/raw/valid-raw.en  # Update
-  PARA_SRC_TEST_RAW=$PARA_PATH/dev/raw/test-raw.fr  # Update
-  PARA_TGT_TEST_RAW=$PARA_PATH/dev/raw/test-raw.en  # Update
-
-  PARA_SRC_TRAIN=$PARA_PATH/train/fr-en.fr  # Update
-  PARA_TGT_TRAIN=$PARA_PATH/train/fr-en.en # Update
-  PARA_SRC_VALID=$PARA_PATH/dev/valid.de  # 用德语和英语来做验证集和测试集，所以不写de-en，不必要与fr-en区别开，因为没有fr-en的验证集
-  PARA_TGT_VALID=$PARA_PATH/dev/valid.en
-  PARA_SRC_TEST=$PARA_PATH/dev/test.de
-  PARA_TGT_TEST=$PARA_PATH/dev/test.en
-fi
 
 if [ "$SRC" == "de" -a "$TGT" == "en" ]; then
   PARA_SRC_TRAIN_RAW=$PARA_PATH/train/raw/de-en-raw.de  # Update  这是未经处理的数据
   PARA_TGT_TRAIN_RAW=$PARA_PATH/train/raw/de-en-raw.en  # Update
-  PARA_SRC_VALID_RAW=$PARA_PATH/dev/raw/valid-raw.fr  # Update
+  PARA_SRC_VALID_RAW=$PARA_PATH/dev/raw/valid-raw.de  # Update
   PARA_TGT_VALID_RAW=$PARA_PATH/dev/raw/valid-raw.en  # Update
-  PARA_SRC_TEST_RAW=$PARA_PATH/dev/raw/test-raw.fr  # Update
+  PARA_SRC_TEST_RAW=$PARA_PATH/dev/raw/test-raw.de  # Update
   PARA_TGT_TEST_RAW=$PARA_PATH/dev/raw/test-raw.en  # Update
 
   PARA_SRC_TRAIN=$PARA_PATH/train/de-en.de  # Update
@@ -143,10 +128,6 @@ if [ "$TGT" == "ro" ]; then
 else
   TGT_PREPROCESSING="$REPLACE_UNICODE_PUNCT | $NORM_PUNC -l $TGT | $REM_NON_PRINT_CHAR |                                            $TOKENIZER -l $TGT -no-escape -threads $N_THREADS"
 fi
-
-#
-# Download parallel data (for evaluation only)
-#
 
 # cd $PARA_PATH
 
@@ -176,22 +157,19 @@ if [ ! -f "$BPE_CODES" ] && [ -f "$RELOAD_CODES" ]; then
   echo "Reloading BPE codes from $RELOAD_CODES ..."
   cp $RELOAD_CODES $BPE_CODES
 fi
-echo "Applying BPE to train files..."
-$FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TRAIN $BPE_CODES     # Update
-$FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TRAIN $BPE_CODES     # Update
 
-echo "Applying BPE to valid and test files..."
-$FASTBPE applybpe $PARA_SRC_VALID_BPE $PARA_SRC_VALID $BPE_CODES $SRC_VOCAB
-$FASTBPE applybpe $PARA_TGT_VALID_BPE $PARA_TGT_VALID $BPE_CODES $TGT_VOCAB
-$FASTBPE applybpe $PARA_SRC_TEST_BPE  $PARA_SRC_TEST  $BPE_CODES $SRC_VOCAB
-$FASTBPE applybpe $PARA_TGT_TEST_BPE  $PARA_TGT_TEST  $BPE_CODES $TGT_VOCAB
-
+# learn BPE codes
+if [ ! -f "$BPE_CODES" ]; then
+  echo "Learning BPE codes..."
+  $FASTBPE learnbpe $CODES $PARA_SRC_TRAIN $PARA_TGT_TRAIN > $BPE_CODES
+fi
+echo "BPE learned in $BPE_CODES"
 
 # extract source and target vocabulary
 if ! [[ -f "$SRC_VOCAB" && -f "$TGT_VOCAB" ]]; then
   echo "Extracting vocabulary..."
-  $FASTBPE getvocab $SRC_TRAIN_BPE > $SRC_VOCAB
-  $FASTBPE getvocab $TGT_TRAIN_BPE > $TGT_VOCAB
+  $FASTBPE getvocab $PARA_SRC_TRAIN_BPE > $SRC_VOCAB
+  $FASTBPE getvocab $PARA_TGT_TRAIN_BPE > $TGT_VOCAB
 fi
 echo "$SRC vocab in: $SRC_VOCAB"
 echo "$TGT vocab in: $TGT_VOCAB"
@@ -206,9 +184,20 @@ fi
 # extract full vocabulary
 if ! [[ -f "$FULL_VOCAB" ]]; then
   echo "Extracting vocabulary..."
-  $FASTBPE getvocab $SRC_TRAIN_BPE $TGT_TRAIN_BPE > $FULL_VOCAB
+  $FASTBPE getvocab $PARA_SRC_TRAIN_BPE $PARA_TGT_TRAIN_BPE > $FULL_VOCAB
 fi
 echo "Full vocab in: $FULL_VOCAB"
+
+echo "Applying BPE to train files..."
+$FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TRAIN $BPE_CODES     # Update
+$FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TRAIN $BPE_CODES     # Update
+
+echo "Applying BPE to valid and test files..."
+$FASTBPE applybpe $PARA_SRC_VALID_BPE $PARA_SRC_VALID $BPE_CODES $SRC_VOCAB
+$FASTBPE applybpe $PARA_TGT_VALID_BPE $PARA_TGT_VALID $BPE_CODES $TGT_VOCAB
+$FASTBPE applybpe $PARA_SRC_TEST_BPE  $PARA_SRC_TEST  $BPE_CODES $SRC_VOCAB
+$FASTBPE applybpe $PARA_TGT_TEST_BPE  $PARA_TGT_TEST  $BPE_CODES $TGT_VOCAB
+
 
 echo "Binarizing data..."
 rm -f $PARA_SRC_TRAIN_BPE.pth $PARA_TGT_TRAIN_BPE.pth $PARA_SRC_VALID_BPE.pth $PARA_TGT_VALID_BPE.pth $PARA_SRC_TEST_BPE.pth $PARA_TGT_TEST_BPE.pth     # Update
@@ -221,7 +210,13 @@ $MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_TGT_VALID_BPE
 $MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_SRC_TEST_BPE
 $MAIN_PATH/preprocess.py $FULL_VOCAB $PARA_TGT_TEST_BPE
 
-
+#
+# Link monolingual validation and test data to parallel data
+#
+ln -sf $PARA_SRC_VALID_BPE.pth $SRC_VALID_BPE.pth
+ln -sf $PARA_TGT_VALID_BPE.pth $TGT_VALID_BPE.pth
+ln -sf $PARA_SRC_TEST_BPE.pth  $SRC_TEST_BPE.pth
+ln -sf $PARA_TGT_TEST_BPE.pth  $TGT_TEST_BPE.pth
 
 #
 # Summary
