@@ -11,8 +11,6 @@ set -e
 #
 # Data preprocessing configuration
 #
-N_MONO=5000000  # number of monolingual sentences for each language
-CODES=60000     # number of BPE codes
 N_THREADS=16    # number of threads in data preprocessing
 
 
@@ -172,7 +170,12 @@ eval "cat $PARA_TGT_VALID_PATH | $TGT_PREPROCESSING > $PARA_TGT_VALID"
 eval "cat $PARA_SRC_TEST_PATH | $SRC_PREPROCESSING > $PARA_SRC_TEST"
 eval "cat $PARA_TGT_TEST_PATH | $TGT_PREPROCESSING > $PARA_TGT_TEST"
 
-
+# reload BPE codes
+cd $MAIN_PATH
+if [ ! -f "$BPE_CODES" ] && [ -f "$RELOAD_CODES" ]; then
+  echo "Reloading BPE codes from $RELOAD_CODES ..."
+  cp $RELOAD_CODES $BPE_CODES
+fi
 echo "Applying BPE to train files..."
 $FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TRAIN $BPE_CODES     # Update
 $FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TRAIN $BPE_CODES     # Update
@@ -182,6 +185,30 @@ $FASTBPE applybpe $PARA_SRC_VALID_BPE $PARA_SRC_VALID $BPE_CODES $SRC_VOCAB
 $FASTBPE applybpe $PARA_TGT_VALID_BPE $PARA_TGT_VALID $BPE_CODES $TGT_VOCAB
 $FASTBPE applybpe $PARA_SRC_TEST_BPE  $PARA_SRC_TEST  $BPE_CODES $SRC_VOCAB
 $FASTBPE applybpe $PARA_TGT_TEST_BPE  $PARA_TGT_TEST  $BPE_CODES $TGT_VOCAB
+
+
+# extract source and target vocabulary
+if ! [[ -f "$SRC_VOCAB" && -f "$TGT_VOCAB" ]]; then
+  echo "Extracting vocabulary..."
+  $FASTBPE getvocab $SRC_TRAIN_BPE > $SRC_VOCAB
+  $FASTBPE getvocab $TGT_TRAIN_BPE > $TGT_VOCAB
+fi
+echo "$SRC vocab in: $SRC_VOCAB"
+echo "$TGT vocab in: $TGT_VOCAB"
+
+# reload full vocabulary
+cd $MAIN_PATH
+if [ ! -f "$FULL_VOCAB" ] && [ -f "$RELOAD_VOCAB" ]; then
+  echo "Reloading vocabulary from $RELOAD_VOCAB ..."
+  cp $RELOAD_VOCAB $FULL_VOCAB
+fi
+
+# extract full vocabulary
+if ! [[ -f "$FULL_VOCAB" ]]; then
+  echo "Extracting vocabulary..."
+  $FASTBPE getvocab $SRC_TRAIN_BPE $TGT_TRAIN_BPE > $FULL_VOCAB
+fi
+echo "Full vocab in: $FULL_VOCAB"
 
 echo "Binarizing data..."
 rm -f $PARA_SRC_TRAIN_BPE.pth $PARA_TGT_TRAIN_BPE.pth $PARA_SRC_VALID_BPE.pth $PARA_TGT_VALID_BPE.pth $PARA_SRC_TEST_BPE.pth $PARA_TGT_TEST_BPE.pth     # Update

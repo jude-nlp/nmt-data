@@ -116,8 +116,6 @@ else
   TGT_PREPROCESSING="$REPLACE_UNICODE_PUNCT | $NORM_PUNC -l $TGT | $REM_NON_PRINT_CHAR |                                            $TOKENIZER -l $TGT -no-escape -threads $N_THREADS"
 fi
 
-# cd $PARA_PATH
-
 
 # check valid and test files are here
 if ! [[ -f "$PARA_SRC_TRAIN_RAW" ]]; then echo "$PARA_SRC_TRAIN_RAW is not found!"; exit; fi
@@ -128,11 +126,39 @@ echo "Tokenizing train data..."
 eval "cat $PARA_SRC_TRAIN_RAW | $SRC_PREPROCESSING > $PARA_SRC_TRAIN"
 eval "cat $PARA_TGT_TRAIN_RAW | $TGT_PREPROCESSING > $PARA_TGT_TRAIN"
 
+# reload BPE codes
+cd $MAIN_PATH
+if [ ! -f "$BPE_CODES" ] && [ -f "$RELOAD_CODES" ]; then
+  echo "Reloading BPE codes from $RELOAD_CODES ..."
+  cp $RELOAD_CODES $BPE_CODES
+fi
 
 echo "Applying BPE to train files..."
 $FASTBPE applybpe $PARA_SRC_TRAIN_BPE $PARA_SRC_TRAIN $BPE_CODES     # Update
 $FASTBPE applybpe $PARA_TGT_TRAIN_BPE $PARA_TGT_TRAIN $BPE_CODES     # Update
 
+# extract source and target vocabulary
+if ! [[ -f "$SRC_VOCAB" && -f "$TGT_VOCAB" ]]; then
+  echo "Extracting vocabulary..."
+  $FASTBPE getvocab $SRC_TRAIN_BPE > $SRC_VOCAB
+  $FASTBPE getvocab $TGT_TRAIN_BPE > $TGT_VOCAB
+fi
+echo "$SRC vocab in: $SRC_VOCAB"
+echo "$TGT vocab in: $TGT_VOCAB"
+
+# reload full vocabulary
+cd $MAIN_PATH
+if [ ! -f "$FULL_VOCAB" ] && [ -f "$RELOAD_VOCAB" ]; then
+  echo "Reloading vocabulary from $RELOAD_VOCAB ..."
+  cp $RELOAD_VOCAB $FULL_VOCAB
+fi
+
+# extract full vocabulary
+if ! [[ -f "$FULL_VOCAB" ]]; then
+  echo "Extracting vocabulary..."
+  $FASTBPE getvocab $SRC_TRAIN_BPE $TGT_TRAIN_BPE > $FULL_VOCAB
+fi
+echo "Full vocab in: $FULL_VOCAB"
 
 echo "Binarizing data..."
 rm -f $PARA_SRC_TRAIN_BPE.pth $PARA_TGT_TRAIN_BPE.pth $PARA_SRC_VALID_BPE.pth $PARA_TGT_VALID_BPE.pth $PARA_SRC_TEST_BPE.pth $PARA_TGT_TEST_BPE.pth     # Update
